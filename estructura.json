@@ -1,0 +1,37 @@
+{
+  "nombre": "Estructura de prueba",
+  "nodos": [
+    { "id": "N1", "x": 0, "y": 0, "z": 0 },
+    { "id": "N2", "x": 4, "y": 0, "z": 0 },
+    { "id": "N3", "x": 0, "y": 4, "z": 0 },
+    { "id": "N4", "x": 4, "y": 4, "z": 0 },
+    { "id": "N5", "x": 0, "y": 0, "z": 4 },
+    { "id": "N6", "x": 4, "y": 0, "z": 4 },
+    { "id": "N7", "x": 0, "y": 4, "z": 4 },
+    { "id": "N8", "x": 4, "y": 4, "z": 4 },
+    { "id": "N9",  "x": 0, "y": 8, "z": 0 },
+    { "id": "N10", "x": 4, "y": 8, "z": 0 },
+    { "id": "N11", "x": 0, "y": 8, "z": 4 },
+    { "id": "N12", "x": 4, "y": 8, "z": 4 }
+  ],
+  "elementos": [
+    { "id": "COL-01", "tipo": "barra", "subtipo": "columna",  "de": "N1", "a": "N3" },
+    { "id": "COL-02", "tipo": "barra", "subtipo": "columna",  "de": "N2", "a": "N4" },
+    { "id": "COL-03", "tipo": "barra", "subtipo": "columna",  "de": "N5", "a": "N7" },
+    { "id": "COL-04", "tipo": "barra", "subtipo": "columna",  "de": "N6", "a": "N8" },
+    { "id": "VIG-01", "tipo": "barra", "subtipo": "viga",     "de": "N3", "a": "N4" },
+    { "id": "VIG-02", "tipo": "barra", "subtipo": "viga",     "de": "N7", "a": "N8" },
+    { "id": "VIG-03", "tipo": "barra", "subtipo": "viga",     "de": "N3", "a": "N7" },
+    { "id": "VIG-04", "tipo": "barra", "subtipo": "viga",     "de": "N4", "a": "N8" },
+    { "id": "DIA-01", "tipo": "barra", "subtipo": "diagonal", "de": "N1", "a": "N4" },
+    { "id": "DIA-02", "tipo": "barra", "subtipo": "diagonal", "de": "N5", "a": "N8" },
+    { "id": "COL-05", "tipo": "barra", "subtipo": "columna", "de": "N3", "a": "N9"  },
+    { "id": "COL-06", "tipo": "barra", "subtipo": "columna", "de": "N4", "a": "N10" },
+    { "id": "COL-07", "tipo": "barra", "subtipo": "columna", "de": "N7", "a": "N11" },
+    { "id": "COL-08", "tipo": "barra", "subtipo": "columna", "de": "N8", "a": "N12" },
+    { "id": "VIG-05", "tipo": "barra", "subtipo": "viga",     "de": "N9", "a": "N10" },
+    { "id": "VIG-06", "tipo": "barra", "subtipo": "viga",     "de": "N9", "a": "N11" },
+    { "id": "VIG-07", "tipo": "barra", "subtipo": "viga",     "de": "N10", "a": "N12" },
+    { "id": "VIG-08", "tipo": "barra", "subtipo": "viga",     "de": "N11", "a": "N12" }
+  ]
+}

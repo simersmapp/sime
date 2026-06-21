@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Inspector 3D — Etapa 4a</title>
+  <style>
+    :root {
+      --ok: #22c55e;
+      --leve: #eab308;
+      --moderado: #f97316;
+      --severo: #ef4444;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0f1e; overflow: hidden; }
+    canvas { display: block; }
+
+    #info {
+      position: absolute;
+      top: 16px; left: 16px;
+      color: #64b5f6;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 12px;
+      line-height: 1.8;
+      pointer-events: none;
+    }
+    #info strong { color: #fff; font-size: 14px; display: block; margin-bottom: 2px; }
+    #info span   { color: #8899bb; font-size: 10px; }
+
+    #badge-pendientes {
+      display: none;
+      pointer-events: auto;
+      cursor: pointer;
+      margin-top: 8px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid #f59e0b;
+      color: #f59e0b;
+      font-size: 10px;
+      font-weight: 700;
+      width: fit-content;
+    }
+
+    /* ── PANEL INFERIOR (bottom sheet) ── */
+    #panel {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      width: 100%;
+      max-height: 38vh;
+      background: rgba(10, 15, 30, 0.97);
+      border-top: 1px solid #1a3a6a;
+      padding: 14px 20px calc(18px + env(safe-area-inset-bottom, 0px));
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #cdd6f4;
+      transform: translateY(100%);
+      transition: transform 0.25s ease;
+      overflow-y: auto;
+      z-index: 500;
+      box-shadow: 0 -8px 24px rgba(0,0,0,0.45);
+    }
+    #panel.visible { transform: translateY(0); }
+
+    .panel-handle {
+      width: 36px; height: 4px;
+      background: #334155;
+      border-radius: 2px;
+      margin: 0 auto 14px;
+    }
+
+    .panel-fila {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .panel-info { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .panel-id { font-size: 17px; font-weight: 700; color: #fff; }
+    .panel-tipo { font-size: 11px; color: #8899bb; text-transform: uppercase; letter-spacing: 0.06em; }
+    .panel-badges { display: flex; gap: 8px; align-items: center; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .btn-iniciar {
+      width: 100%;
+      padding: 13px;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .btn-iniciar:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(37,99,235,0.4); }
+    .btn-iniciar:active { transform: translateY(0); }
+
+    /* ── CARTILLA PANTALLA COMPLETA ── */
+    #cartilla {
+      position: fixed;
+      inset: 0;
+      background: #0a0f1e;
+      z-index: 1000;
+      display: none;
+      flex-direction: column;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #cdd6f4;
+    }
+    #cartilla.visible { display: flex; }
+
+    .cartilla-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid #1a3a6a;
+      background: rgba(15,25,50,0.6);
+      flex-shrink: 0;
+    }
+    .cartilla-header h1 { font-size: 14px; color: #fff; }
+    .cartilla-header span { font-size: 11px; color: #8899bb; display: block; margin-top: 2px; }
+    .btn-cerrar {
+      background: none; border: 1px solid #334155; color: #8899bb;
+      width: 32px; height: 32px; border-radius: 8px; font-size: 16px; cursor: pointer;
+      flex-shrink: 0;
+    }
+    .btn-cerrar:hover { background: #1a2942; color: #fff; }
+
+    .cartilla-body { flex: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
+
+    /* Pantalla de selección de tipo */
+    .tipo-opciones { display: flex; flex-direction: column; gap: 14px; max-width: 440px; margin: 40px auto; }
+    .btn-tipo {
+      padding: 22px;
+      border-radius: 12px;
+      border: 1px solid #1a3a6a;
+      background: rgba(20,30,55,0.6);
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      color: inherit;
+      font-family: inherit;
+    }
+    .btn-tipo strong { display: block; font-size: 16px; color: #fff; margin-bottom: 4px; }
+    .btn-tipo span { font-size: 12px; color: #8899bb; }
+    .btn-tipo:hover:not(.bloqueado) { border-color: #2563eb; background: rgba(37,99,235,0.12); }
+    .btn-tipo.bloqueado { opacity: 0.4; cursor: not-allowed; }
+    .btn-tipo .motivo { display: block; margin-top: 8px; font-size: 11px; color: #f97316; }
+
+    .btn-marcar-ok {
+      display: block;
+      width: 100%; max-width: 520px; margin: 0 auto 18px;
+      padding: 14px;
+      border-radius: 10px;
+      border: 1px solid var(--ok);
+      background: rgba(34,197,94,0.12);
+      color: var(--ok);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s ease;
+    }
+    .btn-marcar-ok:hover { background: rgba(34,197,94,0.2); }
+
+    /* Conceptos */
+    .concepto {
+      margin-bottom: 18px; max-width: 520px; margin-left: auto; margin-right: auto;
+      background: rgba(20,30,55,0.4);
+      border: 1px solid #1a3a6a;
+      border-radius: 14px;
+      padding: 18px;
+    }
+    .concepto-titulo { display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px; }
+    .concepto-titulo .codigo {
+      font-size: 11px; font-weight: 700; color: #64b5f6; background: rgba(100,181,246,0.12);
+      padding: 2px 8px; border-radius: 6px; letter-spacing: 0.05em;
+    }
+    .concepto-titulo .nombre { font-size: 13px; font-weight: 600; color: #fff; }
+
+    .severidad-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .btn-severidad {
+      padding: 12px 4px;
+      border-radius: 8px;
+      border: 1.5px solid #1a3a6a;
+      background: rgba(20,30,55,0.5);
+      color: #cdd6f4;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+      font-family: inherit;
+    }
+    .btn-severidad:hover { border-color: #475569; }
+    .btn-severidad.activo { color: #0a0f1e; border-color: transparent; font-weight: 800; }
+    .btn-severidad.activo[data-nivel="OK"]       { background: var(--ok); }
+    .btn-severidad.activo[data-nivel="Leve"]     { background: var(--leve); }
+    .btn-severidad.activo[data-nivel="Moderado"] { background: var(--moderado); }
+    .btn-severidad.activo[data-nivel="Severo"]   { background: var(--severo); }
+
+    /* Glosario de Leve/Moderado/Severo: oculto hasta que se elige una opción de ese concepto */
+    .lista-explicaciones {
+      display: none;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid #1a3a6a;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .lista-explicaciones.visible { display: flex; }
+    .explicacion-card {
+      border-left: 3px solid transparent;
+      padding-left: 10px;
+      transition: border-color 0.15s ease;
+    }
+    .explicacion-card.activo { border-left-color: #475569; }
+    .explicacion-card .codigo-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 5px;
+      margin-bottom: 6px;
+      color: #0a0f1e;
+    }
+    .explicacion-card .titulo {
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+    .explicacion-card .descripcion {
+      font-size: 12px;
+      color: #94a3b8;
+      line-height: 1.5;
+    }
+
+    .observaciones-campo { max-width: 520px; margin: 0 auto; }
+    .observaciones-campo label {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #8899bb;
+      display: block; margin-bottom: 6px;
+    }
+    .observaciones-campo textarea {
+      width: 100%; min-height: 80px; resize: vertical;
+      background: rgba(20,30,55,0.5); border: 1px solid #1a3a6a; border-radius: 8px;
+      color: #fff; padding: 10px; font-family: inherit; font-size: 13px;
+    }
+
+    .cartilla-footer {
+      padding: 16px 20px;
+      border-top: 1px solid #1a3a6a;
+      background: rgba(15,25,50,0.6);
+      flex-shrink: 0;
+    }
+    .nivel-preview {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+      font-size: 12px; color: #8899bb; max-width: 520px; margin-left: auto; margin-right: auto;
+    }
+    .nivel-preview .punto { width: 14px; height: 14px; border-radius: 50%; background: #334155; transition: background 0.2s ease; flex-shrink: 0; }
+
+    .btn-guardar {
+      display: block;
+      width: 100%; max-width: 520px; margin: 0 auto;
+      padding: 14px; border: none; border-radius: 10px;
+      background: #334155; color: #94a3b8;
+      font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+      cursor: not-allowed; transition: all 0.2s ease;
+      font-family: inherit;
+    }
+    .btn-guardar.activo { cursor: pointer; color: #fff; }
+    .btn-guardar.activo[data-nivel="A"] { background: linear-gradient(135deg,#22c55e,#16a34a); }
+    .btn-guardar.activo[data-nivel="B"] { background: linear-gradient(135deg,#f97316,#ea580c); }
+    .btn-guardar.activo[data-nivel="C"] { background: linear-gradient(135deg,#ef4444,#dc2626); }
+
+    /* ── AJUSTES PARA CELULAR ──
+       En pantallas chicas se agrandan textos y botones: mejora la lectura
+       de la cabecera y asegura objetivos táctiles cómodos (mínimo ~44-48px). */
+    @media (max-width: 768px) {
+      #info { font-size: 14px; top: 14px; left: 14px; }
+      #info strong { font-size: 19px; margin-bottom: 4px; }
+      #info span { font-size: 13px; }
+      #badge-pendientes { font-size: 12px; padding: 6px 12px; }
+
+      .panel-id { font-size: 19px; }
+      .panel-tipo { font-size: 12px; }
+      .badge { font-size: 13px; padding: 4px 12px; }
+
+      .btn-iniciar { font-size: 15px; padding: 16px; }
+
+      .btn-severidad { font-size: 13px; padding: 16px 4px; min-height: 48px; }
+
+      .cartilla-header h1 { font-size: 17px; }
+      .cartilla-header span { font-size: 12px; }
+      .btn-cerrar { width: 40px; height: 40px; font-size: 18px; }
+
+      .btn-tipo { padding: 24px; }
+      .btn-tipo strong { font-size: 18px; }
+      .btn-tipo span { font-size: 13px; }
+      .btn-marcar-ok { font-size: 14px; padding: 16px; }
+
+      .concepto-titulo .codigo { font-size: 12px; }
+      .concepto-titulo .nombre { font-size: 15px; }
+
+      .explicacion-card .codigo-badge { font-size: 12px; }
+      .explicacion-card .titulo { font-size: 14px; }
+      .explicacion-card .descripcion { font-size: 13px; }
+
+      .observaciones-campo label { font-size: 12px; }
+      /* 16px evita que iOS Safari haga zoom automático al enfocar el campo */
+      .observaciones-campo textarea { font-size: 16px; }
+
+      .nivel-preview { font-size: 13px; }
+      .btn-guardar { font-size: 14px; padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="info">
+  <strong id="nombre-estructura">Cargando...</strong>
+  <span id="contador"></span><br>
+  🖱 Arrastra · Scroll zoom · Clic en elemento
+  <div id="badge-pendientes"></div>
+</div>
+
+<!-- PANEL INFERIOR -->
+<div id="panel">
+  <div class="panel-handle"></div>
+  <div class="panel-fila">
+    <div class="panel-info">
+      <span class="panel-id" id="p-id">—</span>
+      <span class="panel-tipo" id="p-tipo">—</span>
+    </div>
+    <div class="panel-badges">
+      <span class="badge" id="badge-subtipo">—</span>
+      <span class="badge" id="badge-estado" style="display:none;">—</span>
+    </div>
+  </div>
+
+  <button class="btn-iniciar" id="btn-iniciar">Iniciar Inspección</button>
+</div>
+
+<!-- CARTILLA PANTALLA COMPLETA -->
+<div id="cartilla">
+  <div class="cartilla-header">
+    <div>
+      <h1 id="cartilla-elemento-id">—</h1>
+      <span id="cartilla-elemento-subtipo">—</span>
+    </div>
+    <button class="btn-cerrar" id="btn-cerrar-cartilla">✕</button>
+  </div>
+
+  <div class="cartilla-body">
+
+    <!-- PANTALLA 1: TIPO DE INSPECCIÓN -->
+    <div id="pantalla-tipo">
+      <p style="font-size:13px; color:#8899bb; margin-bottom: 4px; text-align:center;">
+        ¿Qué tipo de inspección vas a registrar?
+      </p>
+      <div class="tipo-opciones">
+        <button class="btn-tipo" id="btn-tipo-ilb" data-tipo="ILB">
+          <strong>ILB — Inspección de Línea Base</strong>
+          <span>Primer levantamiento del elemento. Define el estado inicial.</span>
+        </button>
+        <button class="btn-tipo" id="btn-tipo-ic" data-tipo="IC">
+          <strong>IC — Inspección de Continuidad</strong>
+          <span>Seguimiento posterior a la línea base.</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- PANTALLA 2: CARTILLA -->
+    <div id="pantalla-formulario" style="display:none;">
+
+      <button class="btn-marcar-ok" id="btn-marcar-ok">✓ Marcar todo sin daño (OK)</button>
+
+      <div class="concepto" data-concepto="RC">
+        <div class="concepto-titulo"><span class="codigo">RC</span><span class="nombre">Pintura (Recubrimiento)</span></div>
+        <div class="severidad-grid">
+          <button class="btn-severidad" data-nivel="OK">OK</button>
+          <button class="btn-severidad" data-nivel="Leve">Leve</button>
+          <button class="btn-severidad" data-nivel="Moderado">Moderado</button>
+          <button class="btn-severidad" data-nivel="Severo">Severo</button>
+        </div>
+        <div class="lista-explicaciones">
+          <div class="explicacion-card" data-nivel="Leve">
+            <span class="codigo-badge" style="background:var(--leve)">RC-L</span>
+            <div class="titulo">Pérdida parcial de brillo o microfisuras</div>
+            <div class="descripcion">Pérdida parcial de brillo, microfisuras o decoloración superficial (&lt;5%)</div>
+          </div>
+          <div class="explicacion-card" data-nivel="Moderado">
+            <span class="codigo-badge" style="background:var(--moderado)">RC-M</span>
+            <div class="titulo">Descamación localizada</div>
+            <div class="descripcion">Descamación localizada, delaminación parcial, inicio de exposición de metal base (5%-20%)</div>
+          </div>
+          <div class="explicacion-card" data-nivel="Severo">
+            <span class="codigo-badge" style="background:var(--severo)">RC-S</span>
+            <div class="titulo">Desprendimiento total en áreas amplias</div>
+            <div class="descripcion">Desprendimiento total en áreas amplias, exposición de metal generalizada</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="concepto" data-concepto="CO">
+        <div class="concepto-titulo"><span class="codigo">CO</span><span class="nombre">Corrosión</span></div>
+        <div class="severidad-grid">
+          <button class="btn-severidad" data-nivel="OK">OK</button>
+          <button class="btn-severidad" data-nivel="Leve">Leve</button>
+          <button class="btn-severidad" data-nivel="Moderado">Moderado</button>
+          <button class="btn-severidad" data-nivel="Severo">Severo</button>
+        </div>
+        <div class="lista-explicaciones">
+          <div class="explicacion-card" data-nivel="Leve">
+            <span class="codigo-badge" style="background:var(--leve)">CO-L</span>
+            <div class="titulo">Oxidación ligera (flash rust)</div>
+            <div class="descripcion">Oxidación ligera (flash rust), sin penetración ni picaduras</div>
+          </div>
+          <div class="explicacion-card" data-nivel="Moderado">
+            <span class="codigo-badge" style="background:var(--moderado)">CO-M</span>
+            <div class="titulo">Corrosión activa con picaduras</div>
+            <div class="descripcion">Corrosión activa, presencia de picaduras o costras puntuales</div>
+          </div>
+          <div class="explicacion-card" data-nivel="Severo">
+            <span class="codigo-badge" style="background:var(--severo)">CO-S</span>
+            <div class="titulo">Corrosión generalizada</div>
+            <div class="descripcion">Corrosión generalizada, pérdida de material superficial visible</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="concepto" data-concepto="CP">
+        <div class="concepto-titulo"><span class="codigo">CP</span><span class="nombre">Pérdida de Capacidad</span></div>
+        <div class="severidad-grid">
+          <button class="btn-severidad" data-nivel="OK">OK</button>
+          <button class="btn-severidad" data-nivel="Leve">Leve</button>
+          <button class="btn-severidad" data-nivel="Moderado">Moderado</button>
+          <button class="btn-severidad" data-nivel="Severo">Severo</button>
+        </div>
+        <div class="lista-explicaciones">
+          <div class="explicacion-card" data-nivel="Leve">
+            <span class="codigo-badge" style="background:var(--leve)">CP-L</span>
+            <div class="titulo">Erosión leve</div>
+            <div class="descripcion">Erosión leve, sin impacto estructural</div>
+          </div>
+          <div class="explicacion-card" data-nivel="Moderado">
+            <span class="codigo-badge" style="background:var(--moderado)">CP-M</span>
+            <div class="titulo">Reducción visible del espesor</div>
+            <div class="descripcion">Reducción visible del espesor, sin afectar la integridad estructural global</div>
+          </div>
+          <div class="explicacion-card" data-nivel="Severo">
+            <span class="codigo-badge" style="background:var(--severo)">CP-S</span>
+            <div class="titulo">Pérdida crítica de sección</div>
+            <div class="descripcion">Pérdida crítica, puede comprometer la estabilidad o seguridad</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="concepto" data-concepto="DU">
+        <div class="concepto-titulo"><span class="codigo">DU</span><span class="nombre">Daño en Uniones</span></div>
+        <div class="severidad-grid">
+          <button class="btn-severidad" data-nivel="OK">OK</button>
+          <button class="btn-severidad" data-nivel="Leve">Leve</button>
+          <button class="btn-severidad" data-nivel="Moderado">Moderado</button>
+          <button class="btn-severidad" data-nivel="Severo">Severo</button>
+        </div>
+        <div class="lista-explicaciones">
+          <div class="explicacion-card" data-nivel="Leve">
+            <span class="codigo-badge" style="background:var(--leve)">DU-L</span>
+            <div class="titulo">Oxidación leve en uniones</div>
+            <div class="descripcion">Oxidación leve en uniones, sin afectación mecánica</div>
+          </div>
+          <div class="explicacion-card" data-nivel="Moderado">
+            <span class="codigo-badge" style="background:var(--moderado)">DU-M</span>
+            <div class="titulo">Corrosión o aflojamiento de pernos</div>
+            <div class="descripcion">Corrosión o aflojamiento de pernos, deformaciones menores</div>
+          </div>
+          <div class="explicacion-card" data-nivel="Severo">
+            <span class="codigo-badge" style="background:var(--severo)">DU-S</span>
+            <div class="titulo">Uniones comprometidas</div>
+            <div class="descripcion">Uniones comprometidas, pérdida de sección o integridad mecánica</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="observaciones-campo">
+        <label>Observaciones (opcional)</label>
+        <textarea id="campo-observaciones" placeholder="Detalles adicionales no cubiertos por los códigos..."></textarea>
+      </div>
+
+    </div>
+
+  </div>
+
+  <div class="cartilla-footer" id="cartilla-footer" style="display:none;">
+    <div class="nivel-preview">
+      <div class="punto" id="nivel-punto"></div>
+      <span id="nivel-texto">Completa los 4 conceptos para calcular el nivel</span>
+    </div>
+    <button class="btn-guardar" id="btn-guardar" disabled>Guardar Inspección</button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js",
+    "three/examples/jsm/controls/OrbitControls": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/controls/OrbitControls.js"
+  }
+}
+</script>
+
+<script type="module">
+
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+
+  // ─────────────────────────────────────────────────────────────
+  // RADIOS POR SUBTIPO
+  // El color del elemento en el modelo 3D ya no depende del subtipo:
+  // depende del estado de inspección (sin inspección / nivel A / B / C).
+  // El subtipo solo define el grosor de la barra y el color del badge en el panel.
+  // ─────────────────────────────────────────────────────────────
+  const RADIOS = {
+    columna:  0.10,
+    viga:     0.08,
+    diagonal: 0.06,
+    tirante:  0.05,
+  };
+  const COLORES_BADGE = {
+    columna:  { bg: '#f97316', txt: '#fff' },
+    viga:     { bg: '#22c55e', txt: '#fff' },
+    diagonal: { bg: '#ef4444', txt: '#fff' },
+    tirante:  { bg: '#eab308', txt: '#000' },
+  };
+
+  // Colores del nivel de daño global (A/B/C), usados para pintar el elemento en el modelo 3D
+  const NIVEL_COLORES = { A: 0x22c55e, B: 0xf97316, C: 0xef4444 };
+  const NIVEL_INFO = {
+    A: { texto: 'Nivel A · Daño Bajo', bg: '#22c55e' },
+    B: { texto: 'Nivel B · Daño Medio', bg: '#f97316' },
+    C: { texto: 'Nivel C · Daño Alto',  bg: '#ef4444' },
+  };
+
+  // Color de reposo cuando el elemento todavía no tiene ninguna inspección registrada.
+  // Gris oscuro, distinto del blanco puro que se usa para resaltar la selección.
+  const COLOR_SIN_INSPECCION = 0x475569;
+
+  // ─────────────────────────────────────────────────────────────
+  // ESCENA, CÁMARA, RENDERIZADOR
+  // ─────────────────────────────────────────────────────────────
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0f1e);
+
+  const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(10, 8, 12);
+  camera.lookAt(2, 2, 2);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  document.body.appendChild(renderer.domElement);
+
+  // ─────────────────────────────────────────────────────────────
+  // LUCES
+  // ─────────────────────────────────────────────────────────────
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+  dirLight.position.set(10, 20, 10);
+  scene.add(dirLight);
+  const fillLight = new THREE.DirectionalLight(0x4488ff, 0.4);
+  fillLight.position.set(-10, 5, -10);
+  scene.add(fillLight);
+
+  // ─────────────────────────────────────────────────────────────
+  // GRID
+  // ─────────────────────────────────────────────────────────────
+  scene.add(new THREE.GridHelper(20, 20, 0x1a3a6a, 0x0f1e38));
+
+  // ─────────────────────────────────────────────────────────────
+  // RAYCASTER
+  // ─────────────────────────────────────────────────────────────
+  const raycaster  = new THREE.Raycaster();
+  const punteroNDC = new THREE.Vector2();
+
+  // ─────────────────────────────────────────────────────────────
+  // ESTADO DE SELECCIÓN EN EL MODELO 3D
+  // elementoSeleccionado guarda el item completo { mesh, datos, colorBase, colorActual }
+  // ─────────────────────────────────────────────────────────────
+  let elementoSeleccionado = null;
+  const elementosSeleccionables = [];
+
+  // ─────────────────────────────────────────────────────────────
+  // REGISTRO DE INSPECCIONES — copia local (vía localStorage)
+  // Estructura: { [elementoId]: { ilb: {...} | null, ic: [ {...}, {...} ] } }
+  // Esta copia local sigue existiendo: la usa la app para pintar colores y
+  // validar el flujo ILB/IC al instante, sin depender de la conexión.
+  // Desde la Etapa 4b, Google Sheets pasa a ser la copia "oficial" de respaldo.
+  // ─────────────────────────────────────────────────────────────
+  const CLAVE_STORAGE = 'inspector3d_registro';
+
+  function cargarRegistro() {
+    try {
+      return JSON.parse(localStorage.getItem(CLAVE_STORAGE)) || {};
+    } catch {
+      return {};
+    }
+  }
+  function guardarRegistroEnStorage() {
+    localStorage.setItem(CLAVE_STORAGE, JSON.stringify(registro));
+  }
+  const registro = cargarRegistro();
+
+  function obtenerUltimoNivel(elementoId) {
+    const historial = registro[elementoId];
+    if (!historial) return null;
+    if (historial.ic && historial.ic.length > 0) return historial.ic[historial.ic.length - 1].nivel;
+    if (historial.ilb) return historial.ilb.nivel;
+    return null;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // GOOGLE SHEETS — envío de cada inspección guardada, vía Apps Script
+  // ─────────────────────────────────────────────────────────────
+
+  // Reemplaza esto con la URL de tu Web App de Apps Script (paso "Implementar").
+  const URL_APPS_SCRIPT = 'PEGA_AQUI_LA_URL_DE_TU_APPS_SCRIPT';
+
+  const CLAVE_INSPECTOR    = 'inspector3d_inspector';
+  const CLAVE_COLA_ENVIO   = 'inspector3d_cola_envio';
+
+  // Se pregunta el nombre una sola vez por celular/navegador y queda guardado.
+  function obtenerNombreInspector() {
+    let nombre = localStorage.getItem(CLAVE_INSPECTOR);
+    if (!nombre) {
+      nombre = (prompt('¿Cuál es tu nombre? Quedará registrado en cada inspección que guardes.') || '').trim();
+      if (!nombre) nombre = 'Sin nombre';
+      localStorage.setItem(CLAVE_INSPECTOR, nombre);
+    }
+    return nombre;
+  }
+
+  function cargarColaEnvio() {
+    try { return JSON.parse(localStorage.getItem(CLAVE_COLA_ENVIO)) || []; }
+    catch { return []; }
+  }
+  function guardarColaEnvio(cola) {
+    localStorage.setItem(CLAVE_COLA_ENVIO, JSON.stringify(cola));
+  }
+
+  function actualizarBadgePendientes() {
+    const cola = cargarColaEnvio();
+    const badge = document.getElementById('badge-pendientes');
+    if (cola.length > 0) {
+      badge.style.display = 'block';
+      badge.textContent = `⚠ ${cola.length} sin sincronizar · toca para reintentar`;
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  // Manda un registro al Web App. Se usa mode:'no-cors' porque Apps Script
+  // no responde con encabezados CORS legibles desde fetch; esto hace que la
+  // respuesta sea "opaca" (no podemos leer si Sheets la aceptó), pero si no
+  // hay conexión, fetch() sí lanza una excepción real y eso lo detectamos.
+  async function enviarRegistro(item) {
+    await fetch(URL_APPS_SCRIPT, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(item),
+    });
+  }
+
+  // Intenta enviar una inspección recién guardada. Si no hay conexión,
+  // queda en la cola local para reintentarse más adelante.
+  async function enviarASheets(item) {
+    try {
+      await enviarRegistro(item);
+      await intentarVaciarCola();
+    } catch {
+      const cola = cargarColaEnvio();
+      cola.push(item);
+      guardarColaEnvio(cola);
+      actualizarBadgePendientes();
+    }
+  }
+
+  // Reintenta enviar todo lo que haya quedado pendiente (se llama al volver
+  // a tener señal, al abrir la app, o al tocar el badge manualmente).
+  async function intentarVaciarCola() {
+    const cola = cargarColaEnvio();
+    if (cola.length === 0) { actualizarBadgePendientes(); return; }
+
+    guardarColaEnvio([]); // se vacía de forma optimista
+    for (const item of cola) {
+      try {
+        await enviarRegistro(item);
+      } catch {
+        const colaActual = cargarColaEnvio();
+        colaActual.push(item);
+        guardarColaEnvio(colaActual);
+      }
+    }
+    actualizarBadgePendientes();
+  }
+
+  document.getElementById('badge-pendientes').addEventListener('click', intentarVaciarCola);
+  actualizarBadgePendientes();
+  intentarVaciarCola(); // reintento automático al abrir la app, por si quedó algo pendiente
+
+  // ─────────────────────────────────────────────────────────────
+  // FUNCIÓN: crear barra
+  // ─────────────────────────────────────────────────────────────
+  function crearBarra(p1, p2, subtipo, datosElemento) {
+    const direccion = new THREE.Vector3().subVectors(p2, p1);
+    const largo     = direccion.length();
+    const centro    = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+
+    const radio = RADIOS[subtipo] ?? 0.07;
+    const color = COLOR_SIN_INSPECCION;
+
+    const geo = new THREE.CylinderGeometry(radio, radio, largo, 12);
+    const mat = new THREE.MeshStandardMaterial({
+      color,
+      metalness: 0.65,
+      roughness: 0.4,
+      emissive: color,
+      emissiveIntensity: 0.08,
+    });
+
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(centro);
+    mesh.quaternion.setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      direccion.clone().normalize()
+    );
+    scene.add(mesh);
+
+    // colorBase = color "de fábrica" según subtipo. colorActual = color de reposo actual
+    // (cambia si el elemento ya tiene una inspección guardada con nivel A/B/C).
+    elementosSeleccionables.push({ mesh, datos: datosElemento, colorBase: color, colorActual: color });
+
+    return mesh;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // FUNCIÓN: crear nodo
+  // ─────────────────────────────────────────────────────────────
+  function crearNodo(punto) {
+    const geo = new THREE.SphereGeometry(0.12, 12, 12);
+    const mat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.8, roughness: 0.2 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(punto);
+    scene.add(mesh);
+    return mesh;
+  }
+
+  // Si un elemento ya tiene una inspección guardada, pinta su color de reposo según el nivel
+  function aplicarColorGuardado(elemento) {
+    const nivel = obtenerUltimoNivel(elemento.datos.id);
+    if (!nivel) return;
+    const color = NIVEL_COLORES[nivel];
+    elemento.colorActual = color;
+    elemento.mesh.material.color.setHex(color);
+    elemento.mesh.material.emissive.setHex(color);
+    elemento.mesh.material.emissiveIntensity = 0.15;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // RESALTAR / RESTAURAR COLOR AL SELECCIONAR
+  // ─────────────────────────────────────────────────────────────
+  function resaltar(elemento) {
+    elemento.mesh.material.color.setHex(0xffffff);
+    elemento.mesh.material.emissive.setHex(0xffffff);
+    elemento.mesh.material.emissiveIntensity = 0.4;
+  }
+  function restaurarColor(elemento) {
+    elemento.mesh.material.color.setHex(elemento.colorActual);
+    elemento.mesh.material.emissive.setHex(elemento.colorActual);
+    elemento.mesh.material.emissiveIntensity = elemento.colorActual === elemento.colorBase ? 0.08 : 0.15;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // PANEL LATERAL
+  // ─────────────────────────────────────────────────────────────
+  function mostrarPanel(elemento) {
+    const datos = elemento.datos;
+    document.getElementById('p-id').textContent   = datos.id;
+    document.getElementById('p-tipo').textContent = datos.tipo;
+
+    const coloresSub = COLORES_BADGE[datos.subtipo] ?? { bg: '#334155', txt: '#fff' };
+    const badgeSub = document.getElementById('badge-subtipo');
+    badgeSub.textContent = datos.subtipo ?? '—';
+    badgeSub.style.background = coloresSub.bg;
+    badgeSub.style.color      = coloresSub.txt;
+
+    const badgeEstado = document.getElementById('badge-estado');
+    const ultimoNivel = obtenerUltimoNivel(datos.id);
+
+    if (ultimoNivel) {
+      badgeEstado.style.display = 'inline-block';
+      badgeEstado.textContent = NIVEL_INFO[ultimoNivel].texto.split(' · ')[0]; // "Nivel A"
+      badgeEstado.style.background = NIVEL_INFO[ultimoNivel].bg;
+      badgeEstado.style.color = '#fff';
+    } else {
+      badgeEstado.style.display = 'none';
+    }
+
+    document.getElementById('panel').classList.add('visible');
+  }
+  function ocultarPanel() {
+    document.getElementById('panel').classList.remove('visible');
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // SELECCIÓN EN EL MODELO 3D
+  // Se usa pointerdown + pointerup (en vez de 'click') escuchando directo
+  // sobre el canvas, porque en celular OrbitControls a veces interpreta
+  // el toque como inicio de arrastre y el evento 'click' del navegador
+  // no llega a dispararse. Se compara la posición de bajada y subida del
+  // dedo/mouse: si el movimiento es mínimo, se trata como una selección;
+  // si fue mayor (el usuario rotó la cámara), se ignora.
+  // ─────────────────────────────────────────────────────────────
+  let inicioPuntero = null;
+  const UMBRAL_ARRASTRE = 6; // píxeles
+
+  renderer.domElement.addEventListener('pointerdown', (evento) => {
+    inicioPuntero = { x: evento.clientX, y: evento.clientY };
+  });
+
+  renderer.domElement.addEventListener('pointerup', (evento) => {
+    if (!inicioPuntero) return;
+    const dx = evento.clientX - inicioPuntero.x;
+    const dy = evento.clientY - inicioPuntero.y;
+    const distancia = Math.sqrt(dx * dx + dy * dy);
+    inicioPuntero = null;
+    if (distancia > UMBRAL_ARRASTRE) return; // fue arrastre de cámara, no selección
+
+    punteroNDC.x =  (evento.clientX / window.innerWidth)  * 2 - 1;
+    punteroNDC.y = -(evento.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(punteroNDC, camera);
+
+    const meshes = elementosSeleccionables.map(e => e.mesh);
+    const intersecciones = raycaster.intersectObjects(meshes);
+
+    if (elementoSeleccionado) restaurarColor(elementoSeleccionado);
+
+    if (intersecciones.length > 0) {
+      const meshTocado = intersecciones[0].object;
+      const encontrado  = elementosSeleccionables.find(e => e.mesh === meshTocado);
+
+      resaltar(encontrado);
+      elementoSeleccionado = encontrado;
+      mostrarPanel(encontrado);
+
+    } else {
+      elementoSeleccionado = null;
+      ocultarPanel();
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // CARTILLA — ESTADO DEL FORMULARIO
+  // ─────────────────────────────────────────────────────────────
+  let tipoActual = null; // 'ILB' o 'IC'
+  let seleccionActual = { RC: null, CO: null, CP: null, DU: null };
+
+  const PESO_SEVERIDAD = { OK: 0, Leve: 1, Moderado: 2, Severo: 3 };
+
+  // ─────────────────────────────────────────────────────────────
+  // MATRIZ DE NIVEL — VERSIÓN PROVISIONAL
+  // CP y DU (estructurales) pesan más que RC y CO (superficiales).
+  // Esta lógica se reemplaza por la matriz de reglas definitiva en la Etapa 4e.
+  // ─────────────────────────────────────────────────────────────
+  function calcularNivel(seleccion) {
+    const { RC, CO, CP, DU } = seleccion;
+    if ([RC, CO, CP, DU].some(v => v === null)) return null;
+
+    const pesos = [
+      PESO_SEVERIDAD[RC],
+      PESO_SEVERIDAD[CO],
+      PESO_SEVERIDAD[CP] * 1.5,
+      PESO_SEVERIDAD[DU] * 1.5,
+    ];
+    const maximo = Math.max(...pesos);
+
+    if (maximo >= 4.5) return 'C'; // CP o DU en Severo
+    if (maximo >= 2)   return 'B'; // Moderado en cualquier concepto, o algo más grave
+    return 'A';
+  }
+
+  function actualizarPreviewNivel() {
+    const nivel = calcularNivel(seleccionActual);
+    const punto = document.getElementById('nivel-punto');
+    const texto = document.getElementById('nivel-texto');
+    const btnGuardar = document.getElementById('btn-guardar');
+
+    if (!nivel) {
+      const faltan = Object.entries(seleccionActual).filter(([, v]) => v === null).map(([k]) => k);
+      punto.style.background = '#334155';
+      texto.textContent = `Falta evaluar: ${faltan.join(', ')}`;
+      btnGuardar.classList.remove('activo');
+      btnGuardar.removeAttribute('data-nivel');
+      btnGuardar.disabled = true;
+      return;
+    }
+
+    punto.style.background = NIVEL_INFO[nivel].bg;
+    texto.textContent = NIVEL_INFO[nivel].texto;
+    btnGuardar.classList.add('activo');
+    btnGuardar.dataset.nivel = nivel;
+    btnGuardar.disabled = false;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // ABRIR / CERRAR CARTILLA
+  // ─────────────────────────────────────────────────────────────
+  function abrirCartilla() {
+    if (!elementoSeleccionado) return;
+    const datos = elementoSeleccionado.datos;
+
+    document.getElementById('cartilla-elemento-id').textContent = datos.id;
+    document.getElementById('cartilla-elemento-subtipo').textContent =
+      `${datos.tipo} · ${datos.subtipo ?? '—'}`;
+
+    // Reset del formulario
+    tipoActual = null;
+    seleccionActual = { RC: null, CO: null, CP: null, DU: null };
+    document.querySelectorAll('.btn-severidad').forEach(b => b.classList.remove('activo'));
+    document.querySelectorAll('.explicacion-card').forEach(c => c.classList.remove('activo'));
+    document.querySelectorAll('.lista-explicaciones').forEach(l => l.classList.remove('visible'));
+    document.getElementById('campo-observaciones').value = '';
+    actualizarPreviewNivel();
+
+    // Validación ILB / IC
+    const yaTieneILB = !!(registro[datos.id] && registro[datos.id].ilb);
+    const btnIlb = document.getElementById('btn-tipo-ilb');
+    const btnIc  = document.getElementById('btn-tipo-ic');
+
+    btnIlb.classList.toggle('bloqueado', yaTieneILB);
+    btnIc.classList.toggle('bloqueado', !yaTieneILB);
+
+    btnIlb.querySelectorAll('.motivo').forEach(m => m.remove());
+    btnIc.querySelectorAll('.motivo').forEach(m => m.remove());
+
+    const motivo = document.createElement('span');
+    motivo.className = 'motivo';
+    if (yaTieneILB) {
+      motivo.textContent = 'Ya existe una ILB para este elemento';
+      btnIlb.appendChild(motivo);
+    } else {
+      motivo.textContent = 'Debes completar la ILB primero';
+      btnIc.appendChild(motivo);
+    }
+
+    document.getElementById('pantalla-tipo').style.display = 'block';
+    document.getElementById('pantalla-formulario').style.display = 'none';
+    document.getElementById('cartilla-footer').style.display = 'none';
+
+    document.getElementById('cartilla').classList.add('visible');
+  }
+
+  function cerrarCartilla() {
+    const hayDatos =
+      Object.values(seleccionActual).some(v => v !== null) ||
+      document.getElementById('campo-observaciones').value.trim() !== '';
+
+    if (hayDatos && !confirm('¿Salir sin guardar? Se perderá la información ingresada.')) return;
+
+    document.getElementById('cartilla').classList.remove('visible');
+  }
+
+  function seleccionarTipo(tipo) {
+    const boton = tipo === 'ILB' ? document.getElementById('btn-tipo-ilb') : document.getElementById('btn-tipo-ic');
+    if (boton.classList.contains('bloqueado')) return;
+
+    tipoActual = tipo;
+    document.getElementById('pantalla-tipo').style.display = 'none';
+    document.getElementById('pantalla-formulario').style.display = 'block';
+    document.getElementById('cartilla-footer').style.display = 'block';
+  }
+
+  function guardarInspeccion() {
+    const nivel = calcularNivel(seleccionActual);
+    if (!nivel || !elementoSeleccionado || !tipoActual) return;
+
+    const datos = elementoSeleccionado.datos;
+    const registroInspeccion = {
+      timestamp: new Date().toISOString(),
+      inspector: obtenerNombreInspector(),
+      tipo: tipoActual,
+      elementoId: datos.id,
+      subtipo: datos.subtipo ?? null,
+      RC: seleccionActual.RC,
+      CO: seleccionActual.CO,
+      CP: seleccionActual.CP,
+      DU: seleccionActual.DU,
+      nivel,
+      observaciones: document.getElementById('campo-observaciones').value.trim(),
+    };
+
+    if (!registro[datos.id]) registro[datos.id] = { ilb: null, ic: [] };
+    if (tipoActual === 'ILB') {
+      registro[datos.id].ilb = registroInspeccion;
+    } else {
+      registro[datos.id].ic.push(registroInspeccion);
+    }
+    guardarRegistroEnStorage();
+    enviarASheets(registroInspeccion); // no se espera: no debe trabar la interfaz
+
+    // Actualizar color de reposo del elemento en el modelo 3D
+    const colorNivel = NIVEL_COLORES[nivel];
+    elementoSeleccionado.colorActual = colorNivel;
+    elementoSeleccionado.mesh.material.color.setHex(colorNivel);
+    elementoSeleccionado.mesh.material.emissive.setHex(colorNivel);
+    elementoSeleccionado.mesh.material.emissiveIntensity = 0.15;
+
+    console.log('Inspección guardada:', registroInspeccion);
+
+    document.getElementById('cartilla').classList.remove('visible');
+    mostrarPanel(elementoSeleccionado); // refresca el badge de estado en el panel
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // EVENT LISTENERS DE LA CARTILLA
+  // ─────────────────────────────────────────────────────────────
+  document.getElementById('btn-iniciar').addEventListener('click', abrirCartilla);
+  document.getElementById('btn-cerrar-cartilla').addEventListener('click', cerrarCartilla);
+  document.getElementById('btn-tipo-ilb').addEventListener('click', () => seleccionarTipo('ILB'));
+  document.getElementById('btn-tipo-ic').addEventListener('click', () => seleccionarTipo('IC'));
+  document.getElementById('btn-guardar').addEventListener('click', guardarInspeccion);
+  document.getElementById('btn-marcar-ok').addEventListener('click', marcarTodoOK);
+
+  function marcarTodoOK() {
+    ['RC', 'CO', 'CP', 'DU'].forEach(codigo => {
+      seleccionActual[codigo] = 'OK';
+      const bloque = document.querySelector(`.concepto[data-concepto="${codigo}"]`);
+      bloque.querySelectorAll('.btn-severidad').forEach(b => b.classList.toggle('activo', b.dataset.nivel === 'OK'));
+      bloque.querySelectorAll('.explicacion-card').forEach(c => c.classList.remove('activo'));
+    });
+    // Es una acción masiva, no enfocada en un concepto puntual: no corresponde dejar
+    // ningún glosario abierto (igual que cuando ya calificaste un tema y pasaste al siguiente).
+    document.querySelectorAll('.lista-explicaciones').forEach(l => l.classList.remove('visible'));
+    actualizarPreviewNivel();
+  }
+
+  document.querySelectorAll('.concepto').forEach(bloque => {
+    const codigo = bloque.dataset.concepto;
+    const glosario = bloque.querySelector('.lista-explicaciones');
+
+    bloque.querySelectorAll('.btn-severidad').forEach(boton => {
+      boton.addEventListener('click', () => {
+        const nivel = boton.dataset.nivel;
+        seleccionActual[codigo] = nivel;
+        bloque.querySelectorAll('.btn-severidad').forEach(b => b.classList.remove('activo'));
+        boton.classList.add('activo');
+
+        // Acordeón: se oculta el glosario de TODOS los conceptos (incluidos los que
+        // ya tienen una calificación elegida) y solo se muestra el del concepto activo.
+        document.querySelectorAll('.lista-explicaciones').forEach(l => l.classList.remove('visible'));
+        glosario.classList.add('visible');
+
+        // Resaltar, dentro del glosario, la tarjeta del nivel elegido
+        // (OK no tiene tarjeta propia, así que solo se resalta si es Leve/Moderado/Severo)
+        bloque.querySelectorAll('.explicacion-card').forEach(c => c.classList.remove('activo'));
+        const tarjeta = bloque.querySelector(`.explicacion-card[data-nivel="${nivel}"]`);
+        if (tarjeta) tarjeta.classList.add('activo');
+
+        actualizarPreviewNivel();
+      });
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // CARGAR JSON
+  // ─────────────────────────────────────────────────────────────
+  fetch('estructura.json')
+    .then(r => r.json())
+    .then(datos => {
+
+      document.getElementById('nombre-estructura').textContent = datos.nombre;
+      document.getElementById('contador').textContent =
+        `${datos.nodos.length} nodos · ${datos.elementos.length} elementos`;
+
+      const nodos = {};
+      for (const nodo of datos.nodos) {
+        nodos[nodo.id] = new THREE.Vector3(nodo.x, nodo.y, nodo.z);
+      }
+      for (const nodo of datos.nodos) {
+        crearNodo(nodos[nodo.id]);
+      }
+      for (const elemento of datos.elementos) {
+        if (elemento.tipo === 'barra') {
+          crearBarra(nodos[elemento.de], nodos[elemento.a], elemento.subtipo, elemento);
+        }
+      }
+
+      // Pintar elementos que ya tienen inspecciones guardadas (de una sesión anterior)
+      elementosSeleccionables.forEach(aplicarColorGuardado);
+
+    })
+    .catch(err => {
+      document.getElementById('nombre-estructura').textContent = '⚠ No se encontró estructura.json';
+    });
+
+  // ─────────────────────────────────────────────────────────────
+  // ORBIT CONTROLS
+  // ─────────────────────────────────────────────────────────────
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance   = 2;
+  controls.maxDistance   = 50;
+
+  // ─────────────────────────────────────────────────────────────
+  // LOOP
+  // ─────────────────────────────────────────────────────────────
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  // ─────────────────────────────────────────────────────────────
+  // RESPONSIVO
+  // ─────────────────────────────────────────────────────────────
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+</script>
+</body>
+</html>
