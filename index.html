@@ -245,6 +245,61 @@
       line-height: 1.5;
     }
 
+    /* ── FOTOS ── */
+    .fotos-campo { max-width: 520px; margin: 0 auto 18px; }
+    .fotos-campo label {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #8899bb;
+      display: block; margin-bottom: 8px;
+    }
+    .fotos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .foto-miniatura {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #1a3a6a;
+      background: #0f1e38;
+    }
+    .foto-miniatura img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .foto-miniatura .btn-quitar-foto {
+      position: absolute; top: 3px; right: 3px;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: rgba(10,15,30,0.85);
+      border: 1px solid #475569;
+      color: #fff;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      line-height: 1;
+    }
+    .foto-miniatura .badge-subiendo {
+      position: absolute; inset: 0;
+      background: rgba(10,15,30,0.65);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; color: #64b5f6; text-align: center; padding: 4px;
+    }
+    .btn-agregar-foto {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px dashed #334155;
+      background: rgba(20,30,55,0.4);
+      color: #8899bb;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-agregar-foto:hover { border-color: #2563eb; color: #cdd6f4; }
+    .fotos-campo .ayuda { font-size: 11px; color: #64748b; margin-top: 6px; }
+
     .observaciones-campo { max-width: 520px; margin: 0 auto; }
     .observaciones-campo label {
       font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #8899bb;
@@ -314,6 +369,10 @@
       .explicacion-card .codigo-badge { font-size: 12px; }
       .explicacion-card .titulo { font-size: 14px; }
       .explicacion-card .descripcion { font-size: 13px; }
+
+      .fotos-campo label { font-size: 12px; }
+      .btn-agregar-foto { font-size: 14px; padding: 16px; min-height: 48px; }
+      .foto-miniatura .btn-quitar-foto { width: 26px; height: 26px; font-size: 14px; }
 
       .observaciones-campo label { font-size: 12px; }
       /* 16px evita que iOS Safari haga zoom automático al enfocar el campo */
@@ -490,6 +549,14 @@
             <div class="descripcion">Uniones comprometidas, pérdida de sección o integridad mecánica</div>
           </div>
         </div>
+      </div>
+
+      <div class="fotos-campo">
+        <label>Fotos (opcional, hasta 6)</label>
+        <div class="fotos-grid" id="fotos-grid"></div>
+        <button type="button" class="btn-agregar-foto" id="btn-agregar-foto">📷 Agregar foto</button>
+        <input type="file" id="input-foto" accept="image/*" capture="environment" multiple style="display:none;">
+        <div class="ayuda" id="fotos-ayuda"></div>
       </div>
 
       <div class="observaciones-campo">
@@ -874,6 +941,9 @@
   // ─────────────────────────────────────────────────────────────
   let tipoActual = null; // 'ILB' o 'IC'
   let seleccionActual = { RC: null, CO: null, CP: null, DU: null };
+  let fotosSeleccionadas = []; // [{ id, nombre, base64 (sin prefijo data:), urlPreview }]
+  const MAX_FOTOS = 6;
+  let contadorFotoId = 0;
 
   const PESO_SEVERIDAD = { OK: 0, Leve: 1, Moderado: 2, Severo: 3 };
 
@@ -923,6 +993,114 @@
   }
 
   // ─────────────────────────────────────────────────────────────
+  // FOTOS — compresión en el navegador antes de guardar
+  // Se redimensiona a un ancho máximo y se recodifica como JPEG con calidad
+  // reducida. Esto es clave en terreno: una foto de celular sin comprimir
+  // puede pesar 4-8 MB, y con varias fotos por inspección eso vuelve lento
+  // (o directamente imposible con mala señal) el envío y la cola de reintento.
+  // ─────────────────────────────────────────────────────────────
+  async function comprimirImagen(archivo, maxAncho = 1024, calidad = 0.6) {
+    const bitmap = await createImageBitmap(archivo);
+    const escala = Math.min(1, maxAncho / bitmap.width);
+    const ancho  = Math.max(1, Math.round(bitmap.width  * escala));
+    const alto   = Math.max(1, Math.round(bitmap.height * escala));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = ancho;
+    canvas.height = alto;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, ancho, alto);
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) { reject(new Error('No se pudo comprimir la imagen')); return; }
+        const lector = new FileReader();
+        lector.onload = () => resolve(lector.result); // dataURL completo (con prefijo)
+        lector.onerror = reject;
+        lector.readAsDataURL(blob);
+      }, 'image/jpeg', calidad);
+    });
+  }
+
+  function renderizarFotosGrid() {
+    const grid = document.getElementById('fotos-grid');
+    grid.innerHTML = '';
+
+    fotosSeleccionadas.forEach((foto) => {
+      const celda = document.createElement('div');
+      celda.className = 'foto-miniatura';
+
+      if (foto.urlPreview) {
+        const img = document.createElement('img');
+        img.src = foto.urlPreview;
+        celda.appendChild(img);
+      } else {
+        const procesando = document.createElement('div');
+        procesando.className = 'badge-subiendo';
+        procesando.textContent = 'Procesando...';
+        celda.appendChild(procesando);
+      }
+
+      const btnQuitar = document.createElement('button');
+      btnQuitar.type = 'button';
+      btnQuitar.className = 'btn-quitar-foto';
+      btnQuitar.textContent = '✕';
+      btnQuitar.addEventListener('click', () => quitarFoto(foto.id));
+      celda.appendChild(btnQuitar);
+
+      grid.appendChild(celda);
+    });
+
+    const btnAgregar = document.getElementById('btn-agregar-foto');
+    const ayuda = document.getElementById('fotos-ayuda');
+    if (fotosSeleccionadas.length >= MAX_FOTOS) {
+      btnAgregar.style.display = 'none';
+      ayuda.textContent = `Máximo de ${MAX_FOTOS} fotos alcanzado.`;
+    } else {
+      btnAgregar.style.display = 'flex';
+      ayuda.textContent = '';
+    }
+  }
+
+  function quitarFoto(id) {
+    fotosSeleccionadas = fotosSeleccionadas.filter(f => f.id !== id);
+    renderizarFotosGrid();
+  }
+
+  async function manejarFotosSeleccionadas(archivos) {
+    const disponibles = MAX_FOTOS - fotosSeleccionadas.length;
+    const lista = Array.from(archivos).slice(0, Math.max(0, disponibles));
+
+    for (const archivo of lista) {
+      const id = ++contadorFotoId;
+      // Se agrega de inmediato con placeholder "Procesando..." para que el
+      // inspector vea respuesta instantánea aunque la compresión tome un instante.
+      fotosSeleccionadas.push({ id, nombre: archivo.name || `foto_${id}.jpg`, base64: null, urlPreview: null });
+      renderizarFotosGrid();
+
+      try {
+        const dataUrl = await comprimirImagen(archivo);
+        const foto = fotosSeleccionadas.find(f => f.id === id);
+        if (!foto) continue; // el usuario la quitó mientras se comprimía
+        foto.base64 = dataUrl.split(',')[1];
+        foto.urlPreview = dataUrl;
+        renderizarFotosGrid();
+      } catch (err) {
+        console.error('No se pudo procesar la foto:', err);
+        fotosSeleccionadas = fotosSeleccionadas.filter(f => f.id !== id);
+        renderizarFotosGrid();
+      }
+    }
+  }
+
+  document.getElementById('btn-agregar-foto').addEventListener('click', () => {
+    document.getElementById('input-foto').click();
+  });
+  document.getElementById('input-foto').addEventListener('change', (evento) => {
+    manejarFotosSeleccionadas(evento.target.files);
+    evento.target.value = ''; // permite volver a elegir el mismo archivo si se quita y se re-agrega
+  });
+
+  // ─────────────────────────────────────────────────────────────
   // ABRIR / CERRAR CARTILLA
   // ─────────────────────────────────────────────────────────────
   function abrirCartilla() {
@@ -936,6 +1114,8 @@
     // Reset del formulario
     tipoActual = null;
     seleccionActual = { RC: null, CO: null, CP: null, DU: null };
+    fotosSeleccionadas = [];
+    renderizarFotosGrid();
     document.querySelectorAll('.btn-severidad').forEach(b => b.classList.remove('activo'));
     document.querySelectorAll('.explicacion-card').forEach(c => c.classList.remove('activo'));
     document.querySelectorAll('.lista-explicaciones').forEach(l => l.classList.remove('visible'));
@@ -973,6 +1153,7 @@
   function cerrarCartilla() {
     const hayDatos =
       Object.values(seleccionActual).some(v => v !== null) ||
+      fotosSeleccionadas.length > 0 ||
       document.getElementById('campo-observaciones').value.trim() !== '';
 
     if (hayDatos && !confirm('¿Salir sin guardar? Se perderá la información ingresada.')) return;
@@ -994,10 +1175,16 @@
     const nivel = calcularNivel(seleccionActual);
     if (!nivel || !elementoSeleccionado || !tipoActual) return;
 
+    if (fotosSeleccionadas.some(f => f.base64 === null)) {
+      alert('Espera unos segundos: hay fotos terminando de procesarse.');
+      return;
+    }
+
     const datos = elementoSeleccionado.datos;
     const registroInspeccion = {
       timestamp: new Date().toISOString(),
       inspector: obtenerNombreInspector(),
+      estructura: nombreEstructuraActual,
       tipo: tipoActual,
       elementoId: datos.id,
       subtipo: datos.subtipo ?? null,
@@ -1007,13 +1194,20 @@
       DU: seleccionActual.DU,
       nivel,
       observaciones: document.getElementById('campo-observaciones').value.trim(),
+      fotos: fotosSeleccionadas.map(f => ({ nombre: f.nombre, base64: f.base64 })),
     };
+
+    // El registro local persistente (localStorage) solo guarda lo liviano:
+    // lo usa la app para pintar colores y validar ILB/IC al instante. Si guardáramos
+    // las fotos en base64 ahí, el storage del celular se llenaría rápido con el
+    // historial completo de inspecciones. Las fotos viajan solo en el envío a Sheets/Drive.
+    const { fotos, ...registroLiviano } = registroInspeccion;
 
     if (!registro[datos.id]) registro[datos.id] = { ilb: null, ic: [] };
     if (tipoActual === 'ILB') {
-      registro[datos.id].ilb = registroInspeccion;
+      registro[datos.id].ilb = registroLiviano;
     } else {
-      registro[datos.id].ic.push(registroInspeccion);
+      registro[datos.id].ic.push(registroLiviano);
     }
     guardarRegistroEnStorage();
     enviarASheets(registroInspeccion); // no se espera: no debe trabar la interfaz
@@ -1084,10 +1278,13 @@
   // ─────────────────────────────────────────────────────────────
   // CARGAR JSON
   // ─────────────────────────────────────────────────────────────
+  let nombreEstructuraActual = 'Estructura';
+
   fetch('estructura.json')
     .then(r => r.json())
     .then(datos => {
 
+      nombreEstructuraActual = datos.nombre || 'Estructura';
       document.getElementById('nombre-estructura').textContent = datos.nombre;
       document.getElementById('contador').textContent =
         `${datos.nodos.length} nodos · ${datos.elementos.length} elementos`;
