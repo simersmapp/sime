@@ -1,0 +1,13 @@
+{
+  "faenas": [
+    {
+      "nombre": "Faena de Prueba",
+      "activos": [
+        {
+          "nombre": "Estructura de Prueba",
+          "archivo": "estructura.json"
+        }
+      ]
+    }
+  ]
+}
