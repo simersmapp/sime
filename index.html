@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>Inspector 3D — Etapa 4a</title>
+  <title>SIME</title>
   <style>
     :root {
       --ok: #22c55e;
@@ -27,6 +27,25 @@
     #info strong { color: #fff; font-size: 14px; display: block; margin-bottom: 2px; }
     #info span   { color: #8899bb; font-size: 10px; }
 
+    #contexto-faena {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: auto;
+    }
+    #btn-cambiar-faena {
+      pointer-events: auto;
+      background: none;
+      border: 1px solid #334155;
+      color: #8899bb;
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    #btn-cambiar-faena:hover { border-color: #2563eb; color: #cdd6f4; }
+
     #badge-pendientes {
       display: none;
       pointer-events: auto;
@@ -40,6 +59,103 @@
       font-size: 10px;
       font-weight: 700;
       width: fit-content;
+    }
+
+    /* ── PANTALLA INICIAL: SELECCIÓN DE FAENA Y ACTIVO (Etapa 4d) ── */
+    #inicio {
+      position: fixed;
+      inset: 0;
+      background: #0a0f1e;
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #cdd6f4;
+      padding: 24px;
+      overflow-y: auto;
+    }
+    #inicio.oculto { display: none; }
+
+    .inicio-marca {
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: 0.28em;
+      color: #fff;
+      margin-bottom: 6px;
+      text-indent: 0.28em; /* compensa el letter-spacing final para centrar visualmente */
+    }
+    .inicio-subtitulo {
+      font-size: 12px;
+      color: #64b5f6;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 36px;
+      text-align: center;
+    }
+
+    .inicio-paso {
+      width: 100%;
+      max-width: 440px;
+    }
+    .inicio-paso .etiqueta {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #8899bb;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .inicio-paso .etiqueta .paso-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: rgba(37,99,235,0.2);
+      border: 1px solid #2563eb;
+      color: #64b5f6;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .inicio-opciones { display: flex; flex-direction: column; gap: 12px; }
+    .btn-inicio-opcion {
+      padding: 18px 20px;
+      border-radius: 12px;
+      border: 1px solid #1a3a6a;
+      background: rgba(20,30,55,0.6);
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      color: inherit;
+      font-family: inherit;
+    }
+    .btn-inicio-opcion strong { display: block; font-size: 15px; color: #fff; margin-bottom: 2px; }
+    .btn-inicio-opcion span { font-size: 11px; color: #8899bb; }
+    .btn-inicio-opcion:hover { border-color: #2563eb; background: rgba(37,99,235,0.12); }
+
+    .btn-volver-inicio {
+      margin-top: 20px;
+      background: none;
+      border: none;
+      color: #64748b;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+      text-decoration: underline;
+    }
+    .btn-volver-inicio:hover { color: #cdd6f4; }
+
+    .inicio-error {
+      margin-top: 16px;
+      color: var(--severo);
+      font-size: 12px;
+      text-align: center;
+      max-width: 440px;
     }
 
     /* ── PANEL INFERIOR (bottom sheet) ── */
@@ -344,7 +460,15 @@
       #info { font-size: 14px; top: 14px; left: 14px; }
       #info strong { font-size: 19px; margin-bottom: 4px; }
       #info span { font-size: 13px; }
+      #btn-cambiar-faena { font-size: 12px; padding: 4px 10px; }
       #badge-pendientes { font-size: 12px; padding: 6px 12px; }
+
+      .inicio-marca { font-size: 42px; }
+      .inicio-subtitulo { font-size: 13px; }
+      .btn-inicio-opcion { padding: 20px; min-height: 48px; }
+      .btn-inicio-opcion strong { font-size: 17px; }
+      .btn-inicio-opcion span { font-size: 12px; }
+      .btn-volver-inicio { font-size: 14px; padding: 8px; }
 
       .panel-id { font-size: 19px; }
       .panel-tipo { font-size: 12px; }
@@ -385,8 +509,31 @@
 </head>
 <body>
 
+<!-- PANTALLA INICIAL: FAENA Y ACTIVO (Etapa 4d) -->
+<div id="inicio">
+  <div class="inicio-marca">SIME</div>
+  <div class="inicio-subtitulo">Inspección de estructuras</div>
+
+  <div class="inicio-paso" id="paso-faena">
+    <div class="etiqueta"><span class="paso-num">1</span> Selecciona la faena</div>
+    <div class="inicio-opciones" id="opciones-faena"></div>
+  </div>
+
+  <div class="inicio-paso" id="paso-activo" style="display:none;">
+    <div class="etiqueta"><span class="paso-num">2</span> Selecciona el activo</div>
+    <div class="inicio-opciones" id="opciones-activo"></div>
+    <button class="btn-volver-inicio" id="btn-volver-faena">← Elegir otra faena</button>
+  </div>
+
+  <div class="inicio-error" id="inicio-error" style="display:none;"></div>
+</div>
+
 <div id="info">
-  <strong id="nombre-estructura">Cargando...</strong>
+  <strong id="nombre-estructura">—</strong>
+  <span id="contexto-faena">
+    <span id="texto-faena"></span>
+    <button id="btn-cambiar-faena">Cambiar</button>
+  </span><br>
   <span id="contador"></span><br>
   🖱 Arrastra · Scroll zoom · Clic en elemento
   <div id="badge-pendientes"></div>
@@ -623,6 +770,14 @@
   const COLOR_SIN_INSPECCION = 0x475569;
 
   // ─────────────────────────────────────────────────────────────
+  // CONTEXTO DE FAENA Y ACTIVO (Etapa 4d)
+  // Se define en la pantalla inicial, antes de cargar el modelo 3D, y viaja
+  // con cada inspección hacia el Apps Script (planilla + árbol de Drive).
+  // ─────────────────────────────────────────────────────────────
+  let faenaActual  = null;   // { nombre, activos: [...] }
+  let activoActual = null;   // { nombre, archivo }
+
+  // ─────────────────────────────────────────────────────────────
   // ESCENA, CÁMARA, RENDERIZADOR
   // ─────────────────────────────────────────────────────────────
   const scene = new THREE.Scene();
@@ -669,23 +824,25 @@
   // ─────────────────────────────────────────────────────────────
   // REGISTRO DE INSPECCIONES — copia local (vía localStorage)
   // Estructura: { [elementoId]: { ilb: {...} | null, ic: [ {...}, {...} ] } }
-  // Esta copia local sigue existiendo: la usa la app para pintar colores y
-  // validar el flujo ILB/IC al instante, sin depender de la conexión.
-  // Desde la Etapa 4b, Google Sheets pasa a ser la copia "oficial" de respaldo.
+  // Desde la 4d el registro local se guarda con una clave POR FAENA Y ACTIVO,
+  // porque dos activos distintos podrían repetir IDs de elementos (VIG-01, etc.)
+  // y sus historiales ILB/IC no deben mezclarse.
   // ─────────────────────────────────────────────────────────────
-  const CLAVE_STORAGE = 'inspector3d_registro';
+  let registro = {};
 
+  function claveRegistro() {
+    return `sime_registro__${faenaActual.nombre}__${activoActual.nombre}`;
+  }
   function cargarRegistro() {
     try {
-      return JSON.parse(localStorage.getItem(CLAVE_STORAGE)) || {};
+      return JSON.parse(localStorage.getItem(claveRegistro())) || {};
     } catch {
       return {};
     }
   }
   function guardarRegistroEnStorage() {
-    localStorage.setItem(CLAVE_STORAGE, JSON.stringify(registro));
+    localStorage.setItem(claveRegistro(), JSON.stringify(registro));
   }
-  const registro = cargarRegistro();
 
   function obtenerUltimoNivel(elementoId) {
     const historial = registro[elementoId];
@@ -702,8 +859,23 @@
   // Reemplaza esto con la URL de tu Web App de Apps Script (paso "Implementar").
   const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbxa0RwuWgyWg5NCTqlx3kDTNAFgybBPWYnWtmNmxQLgwlsbeH94fIsDTiYDZyP6KX7J/exec';
 
-  const CLAVE_INSPECTOR    = 'inspector3d_inspector';
-  const CLAVE_COLA_ENVIO   = 'inspector3d_cola_envio';
+  const CLAVE_INSPECTOR    = 'sime_inspector';
+  const CLAVE_COLA_ENVIO   = 'sime_cola_envio';
+
+  // Migración desde las claves antiguas "inspector3d_*" (una sola vez):
+  // conserva el nombre del inspector y las inspecciones pendientes de envío.
+  (function migrarClavesAntiguas() {
+    const nombreViejo = localStorage.getItem('inspector3d_inspector');
+    if (nombreViejo && !localStorage.getItem(CLAVE_INSPECTOR)) {
+      localStorage.setItem(CLAVE_INSPECTOR, nombreViejo);
+    }
+    const colaVieja = localStorage.getItem('inspector3d_cola_envio');
+    if (colaVieja && !localStorage.getItem(CLAVE_COLA_ENVIO)) {
+      localStorage.setItem(CLAVE_COLA_ENVIO, colaVieja);
+    }
+    localStorage.removeItem('inspector3d_inspector');
+    localStorage.removeItem('inspector3d_cola_envio');
+  })();
 
   // Se pregunta el nombre una sola vez por celular/navegador y queda guardado.
   function obtenerNombreInspector() {
@@ -813,7 +985,7 @@
     );
     scene.add(mesh);
 
-    // colorBase = color "de fábrica" según subtipo. colorActual = color de reposo actual
+    // colorBase = color "de fábrica". colorActual = color de reposo actual
     // (cambia si el elemento ya tiene una inspección guardada con nivel A/B/C).
     elementosSeleccionables.push({ mesh, datos: datosElemento, colorBase: color, colorActual: color });
 
@@ -1109,7 +1281,7 @@
 
     document.getElementById('cartilla-elemento-id').textContent = datos.id;
     document.getElementById('cartilla-elemento-subtipo').textContent =
-      `${datos.tipo} · ${datos.subtipo ?? '—'}`;
+      `${faenaActual.nombre} · ${activoActual.nombre} · ${datos.tipo} · ${datos.subtipo ?? '—'}`;
 
     // Reset del formulario
     tipoActual = null;
@@ -1184,6 +1356,8 @@
     const registroInspeccion = {
       timestamp: new Date().toISOString(),
       inspector: obtenerNombreInspector(),
+      faena: faenaActual.nombre,
+      activo: activoActual.nombre,
       estructura: nombreEstructuraActual,
       tipo: tipoActual,
       elementoId: datos.id,
@@ -1276,38 +1450,135 @@
   });
 
   // ─────────────────────────────────────────────────────────────
-  // CARGAR JSON
+  // PANTALLA INICIAL (Etapa 4d) — flujo faena → activo → estructura
+  // El catálogo vive en faenas.json: agregar una faena o un activo nuevo es
+  // editar ese archivo (y subir el estructura-*.json correspondiente), sin
+  // tocar nada de este código.
+  // ─────────────────────────────────────────────────────────────
+  function mostrarErrorInicio(mensaje) {
+    const caja = document.getElementById('inicio-error');
+    caja.textContent = mensaje;
+    caja.style.display = 'block';
+  }
+
+  function renderizarFaenas(catalogo) {
+    const contenedor = document.getElementById('opciones-faena');
+    contenedor.innerHTML = '';
+
+    catalogo.faenas.forEach(faena => {
+      const boton = document.createElement('button');
+      boton.className = 'btn-inicio-opcion';
+      const cantidad = faena.activos.length;
+      boton.innerHTML = `<strong></strong><span>${cantidad} activo${cantidad === 1 ? '' : 's'} disponible${cantidad === 1 ? '' : 's'}</span>`;
+      boton.querySelector('strong').textContent = faena.nombre;
+      boton.addEventListener('click', () => {
+        faenaActual = faena;
+        renderizarActivos(faena);
+        document.getElementById('paso-faena').style.display = 'none';
+        document.getElementById('paso-activo').style.display = 'block';
+      });
+      contenedor.appendChild(boton);
+    });
+  }
+
+  function renderizarActivos(faena) {
+    const contenedor = document.getElementById('opciones-activo');
+    contenedor.innerHTML = '';
+
+    faena.activos.forEach(activo => {
+      const boton = document.createElement('button');
+      boton.className = 'btn-inicio-opcion';
+      boton.innerHTML = `<strong></strong><span>Toca para abrir el modelo 3D</span>`;
+      boton.querySelector('strong').textContent = activo.nombre;
+      boton.addEventListener('click', () => iniciarInspeccionDeActivo(activo));
+      contenedor.appendChild(boton);
+    });
+  }
+
+  document.getElementById('btn-volver-faena').addEventListener('click', () => {
+    faenaActual = null;
+    document.getElementById('paso-activo').style.display = 'none';
+    document.getElementById('paso-faena').style.display = 'block';
+  });
+
+  // Al elegir el activo: se carga su registro local, su estructura, y se entra a la app.
+  function iniciarInspeccionDeActivo(activo) {
+    activoActual = activo;
+    registro = cargarRegistro();
+
+    document.getElementById('texto-faena').textContent =
+      `${faenaActual.nombre} · ${activoActual.nombre}`;
+
+    cargarEstructura(activo.archivo);
+    document.getElementById('inicio').classList.add('oculto');
+  }
+
+  // Volver a la pantalla inicial recargando la página: es la forma más simple y
+  // segura de "resetear" la escena 3D completa (meshes, registro, selección).
+  document.getElementById('btn-cambiar-faena').addEventListener('click', () => {
+    location.reload();
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // CARGAR ESTRUCTURA (JSON del activo elegido)
   // ─────────────────────────────────────────────────────────────
   let nombreEstructuraActual = 'Estructura';
 
-  fetch('estructura.json')
-    .then(r => r.json())
-    .then(datos => {
+  function cargarEstructura(archivo) {
+    document.getElementById('nombre-estructura').textContent = 'Cargando...';
 
-      nombreEstructuraActual = datos.nombre || 'Estructura';
-      document.getElementById('nombre-estructura').textContent = datos.nombre;
-      document.getElementById('contador').textContent =
-        `${datos.nodos.length} nodos · ${datos.elementos.length} elementos`;
+    fetch(archivo)
+      .then(r => {
+        if (!r.ok) throw new Error(`No se encontró ${archivo}`);
+        return r.json();
+      })
+      .then(datos => {
 
-      const nodos = {};
-      for (const nodo of datos.nodos) {
-        nodos[nodo.id] = new THREE.Vector3(nodo.x, nodo.y, nodo.z);
-      }
-      for (const nodo of datos.nodos) {
-        crearNodo(nodos[nodo.id]);
-      }
-      for (const elemento of datos.elementos) {
-        if (elemento.tipo === 'barra') {
-          crearBarra(nodos[elemento.de], nodos[elemento.a], elemento.subtipo, elemento);
+        nombreEstructuraActual = datos.nombre || activoActual.nombre;
+        document.getElementById('nombre-estructura').textContent = nombreEstructuraActual;
+        document.getElementById('contador').textContent =
+          `${datos.nodos.length} nodos · ${datos.elementos.length} elementos`;
+
+        const nodos = {};
+        for (const nodo of datos.nodos) {
+          nodos[nodo.id] = new THREE.Vector3(nodo.x, nodo.y, nodo.z);
         }
+        for (const nodo of datos.nodos) {
+          crearNodo(nodos[nodo.id]);
+        }
+        for (const elemento of datos.elementos) {
+          if (elemento.tipo === 'barra') {
+            crearBarra(nodos[elemento.de], nodos[elemento.a], elemento.subtipo, elemento);
+          }
+        }
+
+        // Pintar elementos que ya tienen inspecciones guardadas (de una sesión anterior)
+        elementosSeleccionables.forEach(aplicarColorGuardado);
+
+      })
+      .catch(err => {
+        console.error(err);
+        document.getElementById('nombre-estructura').textContent = `⚠ No se pudo cargar ${archivo}`;
+      });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // ARRANQUE — cargar el catálogo de faenas
+  // ─────────────────────────────────────────────────────────────
+  fetch('faenas.json')
+    .then(r => {
+      if (!r.ok) throw new Error('No se encontró faenas.json');
+      return r.json();
+    })
+    .then(catalogo => {
+      if (!catalogo.faenas || catalogo.faenas.length === 0) {
+        throw new Error('faenas.json no contiene faenas');
       }
-
-      // Pintar elementos que ya tienen inspecciones guardadas (de una sesión anterior)
-      elementosSeleccionables.forEach(aplicarColorGuardado);
-
+      renderizarFaenas(catalogo);
     })
     .catch(err => {
-      document.getElementById('nombre-estructura').textContent = '⚠ No se encontró estructura.json';
+      console.error(err);
+      mostrarErrorInicio('⚠ No se pudo cargar faenas.json. Verifica que el archivo exista en el repositorio junto a index.html.');
     });
 
   // ─────────────────────────────────────────────────────────────
