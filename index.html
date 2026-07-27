@@ -253,6 +253,22 @@
 
     .cartilla-body { flex: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
 
+    /* Aviso de calificación anterior: fecha de la última inspección del elemento,
+       visible apenas se abre la cartilla, para que el inspector la use de referencia. */
+    .aviso-anterior {
+      display: none;
+      max-width: 520px;
+      margin: 0 auto 18px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid #1a3a6a;
+      background: rgba(37,99,235,0.08);
+      color: #93c5fd;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .aviso-anterior.visible { display: block; }
+
     /* Pantalla de selección de tipo */
     .tipo-opciones { display: flex; flex-direction: column; gap: 14px; max-width: 440px; margin: 40px auto; }
     .btn-tipo {
@@ -487,6 +503,8 @@
       .btn-tipo span { font-size: 13px; }
       .btn-marcar-ok { font-size: 14px; padding: 16px; }
 
+      .aviso-anterior { font-size: 13px; padding: 12px 16px; }
+
       .concepto-titulo .codigo { font-size: 12px; }
       .concepto-titulo .nombre { font-size: 15px; }
 
@@ -588,12 +606,14 @@
     <!-- PANTALLA 2: CARTILLA -->
     <div id="pantalla-formulario" style="display:none;">
 
-      <button class="btn-marcar-ok" id="btn-marcar-ok">✓ Marcar todo sin daño (OK)</button>
+      <div class="aviso-anterior" id="aviso-anterior"></div>
+
+      <button class="btn-marcar-ok" id="btn-marcar-ok">✓ Marcar todo sin daño</button>
 
       <div class="concepto" data-concepto="RC">
         <div class="concepto-titulo"><span class="codigo">RC</span><span class="nombre">Pintura (Recubrimiento)</span></div>
         <div class="severidad-grid">
-          <button class="btn-severidad" data-nivel="OK">OK</button>
+          <button class="btn-severidad" data-nivel="OK">Sin daño</button>
           <button class="btn-severidad" data-nivel="Leve">Leve</button>
           <button class="btn-severidad" data-nivel="Moderado">Moderado</button>
           <button class="btn-severidad" data-nivel="Severo">Severo</button>
@@ -620,7 +640,7 @@
       <div class="concepto" data-concepto="CO">
         <div class="concepto-titulo"><span class="codigo">CO</span><span class="nombre">Corrosión</span></div>
         <div class="severidad-grid">
-          <button class="btn-severidad" data-nivel="OK">OK</button>
+          <button class="btn-severidad" data-nivel="OK">Sin daño</button>
           <button class="btn-severidad" data-nivel="Leve">Leve</button>
           <button class="btn-severidad" data-nivel="Moderado">Moderado</button>
           <button class="btn-severidad" data-nivel="Severo">Severo</button>
@@ -647,7 +667,7 @@
       <div class="concepto" data-concepto="CP">
         <div class="concepto-titulo"><span class="codigo">CP</span><span class="nombre">Pérdida de Capacidad</span></div>
         <div class="severidad-grid">
-          <button class="btn-severidad" data-nivel="OK">OK</button>
+          <button class="btn-severidad" data-nivel="OK">Sin daño</button>
           <button class="btn-severidad" data-nivel="Leve">Leve</button>
           <button class="btn-severidad" data-nivel="Moderado">Moderado</button>
           <button class="btn-severidad" data-nivel="Severo">Severo</button>
@@ -674,7 +694,7 @@
       <div class="concepto" data-concepto="DU">
         <div class="concepto-titulo"><span class="codigo">DU</span><span class="nombre">Daño en Uniones</span></div>
         <div class="severidad-grid">
-          <button class="btn-severidad" data-nivel="OK">OK</button>
+          <button class="btn-severidad" data-nivel="OK">Sin daño</button>
           <button class="btn-severidad" data-nivel="Leve">Leve</button>
           <button class="btn-severidad" data-nivel="Moderado">Moderado</button>
           <button class="btn-severidad" data-nivel="Severo">Severo</button>
@@ -765,6 +785,9 @@
     C: { texto: 'Nivel C · Daño Alto',  bg: '#ef4444' },
   };
 
+  // Textos legibles de cada nivel de severidad, para el aviso de calificación anterior
+  const TEXTO_SEVERIDAD = { OK: 'Sin daño', Leve: 'Leve', Moderado: 'Moderado', Severo: 'Severo' };
+
   // Color de reposo cuando el elemento todavía no tiene ninguna inspección registrada.
   // Gris oscuro, distinto del blanco puro que se usa para resaltar la selección.
   const COLOR_SIN_INSPECCION = 0x475569;
@@ -849,6 +872,17 @@
     if (!historial) return null;
     if (historial.ic && historial.ic.length > 0) return historial.ic[historial.ic.length - 1].nivel;
     if (historial.ilb) return historial.ilb.nivel;
+    return null;
+  }
+
+  // Devuelve el registro completo (RC/CO/CP/DU/timestamp/etc.) de la última
+  // inspección guardada para el elemento, sin importar si fue ILB o IC.
+  // Se usa para mostrar la fecha anterior y precargar los niveles como guía.
+  function obtenerUltimoRegistro(elementoId) {
+    const historial = registro[elementoId];
+    if (!historial) return null;
+    if (historial.ic && historial.ic.length > 0) return historial.ic[historial.ic.length - 1];
+    if (historial.ilb) return historial.ilb;
     return null;
   }
 
@@ -1293,6 +1327,39 @@
     document.querySelectorAll('.lista-explicaciones').forEach(l => l.classList.remove('visible'));
     document.getElementById('campo-observaciones').value = '';
     actualizarPreviewNivel();
+
+    // ── Calificación anterior, como guía ──
+    // Si el elemento ya tiene una inspección previa (ILB o la última IC), se muestra
+    // su fecha y se precargan sus niveles en los botones. El inspector parte viendo
+    // exactamente lo que se calificó la vez anterior y puede confirmarlo o cambiarlo;
+    // no queda guardado hasta que presione "Guardar Inspección".
+    const registroAnterior = obtenerUltimoRegistro(datos.id);
+    const avisoAnterior = document.getElementById('aviso-anterior');
+
+    if (registroAnterior) {
+      const fechaTexto = new Date(registroAnterior.timestamp).toLocaleString('es-CL', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      });
+      avisoAnterior.textContent =
+        `Última calificación registrada: ${fechaTexto}. Se muestran los niveles anteriores como guía; puedes modificarlos antes de guardar.`;
+      avisoAnterior.classList.add('visible');
+
+      ['RC', 'CO', 'CP', 'DU'].forEach(codigo => {
+        const nivelAnterior = registroAnterior[codigo];
+        if (!nivelAnterior) return;
+        seleccionActual[codigo] = nivelAnterior;
+
+        const bloque = document.querySelector(`.concepto[data-concepto="${codigo}"]`);
+        bloque.querySelectorAll('.btn-severidad').forEach(b =>
+          b.classList.toggle('activo', b.dataset.nivel === nivelAnterior)
+        );
+      });
+      actualizarPreviewNivel();
+    } else {
+      avisoAnterior.classList.remove('visible');
+      avisoAnterior.textContent = '';
+    }
 
     // Validación ILB / IC
     const yaTieneILB = !!(registro[datos.id] && registro[datos.id].ilb);
